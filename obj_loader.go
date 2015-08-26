@@ -42,6 +42,9 @@ func LoadOBJ(path string) ([]Vertex, error) {
 		if err != nil && err != io.EOF {
 			return vertices, err
 		}
+		if err == io.EOF {
+			return vertices, nil
+		}
 
 		// trim any whitespace
 		line = strings.TrimSpace(line)
