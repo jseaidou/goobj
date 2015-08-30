@@ -17,10 +17,8 @@ type OBJFile struct {
 }
 
 type Vertex struct {
-	x float64
-	y float64
-	z float64
-	w float64
+	coords []float64
+	vType  string
 }
 
 func LoadOBJ(path string) (*OBJFile, error) {
@@ -52,7 +50,7 @@ func LoadOBJ(path string) (*OBJFile, error) {
 
 		// Vertex
 		if checkToken(line, "v", true) {
-			err = loadVertex(line[1:], &obj.Vertices)
+			err = loadVertex(line[1:], &obj.Vertices, 3, "v")
 			if err != nil {
 				return nil, err
 			}
@@ -60,7 +58,7 @@ func LoadOBJ(path string) (*OBJFile, error) {
 
 		// Normals
 		if checkToken(line, "vn", true) {
-			err = loadVertex(line[2:], &obj.Normals)
+			err = loadVertex(line[2:], &obj.Normals, 3, "vn")
 			if err != nil {
 				return nil, err
 			}
@@ -68,7 +66,7 @@ func LoadOBJ(path string) (*OBJFile, error) {
 
 		// Points
 		if checkToken(line, "vp", true) {
-			err = loadVertex(line[2:], &obj.Points)
+			err = loadVertex(line[2:], &obj.Points, 2, "vp")
 			if err != nil {
 				return nil, err
 			}
@@ -76,7 +74,7 @@ func LoadOBJ(path string) (*OBJFile, error) {
 
 		// Texture
 		if checkToken(line, "vt", true) {
-			err = loadVertex(line[2:], &obj.Textures)
+			err = loadVertex(line[2:], &obj.Textures, 2, "vt")
 			if err != nil {
 				return nil, err
 			}
@@ -105,54 +103,74 @@ func checkToken(token, compare string, spaceAfter bool) bool {
 }
 
 /**
- * loadVertex breaks apart a string and uses them as vertex coordinates in the form of
+ * loadVertex breaks apart a string and uses the fields as vertex coordinates in the form of
  *     Vertex: x y z [w]
  *     Normal: i j k
- *     Point : u v w
+ *     Point : u v [w]
+ *     Texture: u v [w]
  * and appends it to the slice.
  */
-func loadVertex(line string, slice *[]Vertex) error {
+func loadVertex(line string, slice *[]Vertex, minArgs int, vType string) error {
 	if slice == nil {
 		fmt.Errorf("Got unintialized slice in loadVertex")
 	}
 	coords := strings.Fields(line)
+	if len(coords) < minArgs {
+		fmt.Errorf("Expected %v for vertex type: %s, but got: %v", minArgs, vType, len(coords))
+	}
 	fCoords, err := parseFloats(coords)
 	if err != nil {
 		return err
 	}
-	vertex, err := NewVertex(fCoords)
-	if err != nil {
-		return err
-	}
+	vertex := NewVertex(fCoords, vType)
 	*slice = append(*slice, vertex)
 	return nil
 }
 
 /**
- * Creates a new vertex struct from a given array containing the x,y,z coordinates.
- * They define the position of the vertex in 3 dimensions
- * The w coordinate is the weight required for rational curves and surfaces. It is
- * not required for non-rational curves and surfaces. If you do notspecify a value
- * for w, the default is 1.0.
+ * Creates a new vertex struct from a given array.
+ * Vertices can be:
+ *	1.  v with coords x y z [w]. These represent geometric vertex and its x y z coordinates. Rational
+ *		curves and surfaces require a fourth homogeneous coordinate, also
+ *	    called the weight (w). w is the weight required for rational curves and surfaces. It is
+ *		not required for non-rational curves and surfaces. If you do not
+ *		specify a value for w, the default is 1.0.
  *
- * The function returns a error when coords is less than 3 elements big.
+ *	2. vp with coords u v [w]. These represent a vertex point in the parameter space of a curve or surface.
+ *	   The usage determines how many coordinates are required. Special points for curves require a 1D control
+ *	   point (u only) in the parameter space of the curve. Special points for surfaces require a 2D point
+ *	   (u and v) in the parameter space of the surface. Control points for non-rational trimming curves require
+ *	   u and v coordinates. Control points for rational trimming curves require u, v, and w (weight) coordinates.
+ *     u is the point in the parameter space of a curve or the first coordinate in the parameter space of a surface.
+ *     v is the second coordinate in the parameter space of a surface. w is the weight required for rational
+ *     trimming curves. If you do not specify a value for w, it defaults to 1.0.
+ *
+ *	3. vn with coords i j v. These represent a vertex normal. Vertex normals affect the smooth-shading and rendering
+ *	   of geometry. For polygons, vertex normals are used in place of the actual facet normals.  For surfaces, vertex
+ *     normals are interpolated over the entire surface and replace the actual analytic surface normal.
+ *     When vertex normals are present, they supersede smoothing groups.
+ *
+ *	4. vt with coords u v [w]. These represent a texture vertex and its coordinates. A 1D texture requires only u
+ *     texture coordinates, a 2D texture requires both u and v texture coordinates, and a 3D texture requires all
+ *     three coordinates.
+ *
+ *     u is the value for the horizontal direction of the texture.
+ *	   v is an optional argument. v is the value for the vertical direction of the texture. The default is 0.
+ *	   w is an optional argument. w is a value for the depth of the texture. The default is 0.
  */
-func NewVertex(coords []float64) (Vertex, error) {
-	if len(coords) < 3 {
-		return Vertex{}, fmt.Errorf("Error creating Vertex. Expected \"v x y z [w]\" for coordinates. Got: %v", coords)
-	}
-
-	w := 1.0
-	if len(coords) > 3 {
-		w = coords[3]
+func NewVertex(coords []float64, vType string) Vertex {
+	if vType == "v" && len(coords) < 4 {
+		coords = append(coords, 1.0)
+	} else if vType == "vp" && len(coords) < 3 {
+		coords = append(coords, 1.0)
+	} else if vType == "vt" && len(coords) < 3 {
+		coords = append(coords, 0.0)
 	}
 	vertex := Vertex{
-		x: coords[0],
-		y: coords[1],
-		z: coords[2],
-		w: w,
+		coords: coords,
+		vType:  vType,
 	}
-	return vertex, nil
+	return vertex
 }
 
 /**
