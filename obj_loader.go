@@ -13,6 +13,7 @@ type OBJFile struct {
 	Vertices []Vertex
 	Normals  []Vertex
 	Points   []Vertex
+	Textures []Vertex
 }
 
 type Vertex struct {
@@ -28,9 +29,7 @@ func LoadOBJ(path string) (*OBJFile, error) {
 		return nil, err
 	}
 	reader := bufio.NewReader(file)
-	vertices := []Vertex{}
-	normals := []Vertex{}
-	points := []Vertex{}
+	obj := OBJFile{}
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil && err != io.EOF {
@@ -53,7 +52,7 @@ func LoadOBJ(path string) (*OBJFile, error) {
 
 		// Vertex
 		if checkToken(line, "v", true) {
-			err = loadVertex(line[1:], &vertices)
+			err = loadVertex(line[1:], &obj.Vertices)
 			if err != nil {
 				return nil, err
 			}
@@ -61,7 +60,7 @@ func LoadOBJ(path string) (*OBJFile, error) {
 
 		// Normals
 		if checkToken(line, "vn", true) {
-			err = loadVertex(line[2:], &normals)
+			err = loadVertex(line[2:], &obj.Normals)
 			if err != nil {
 				return nil, err
 			}
@@ -69,17 +68,21 @@ func LoadOBJ(path string) (*OBJFile, error) {
 
 		// Points
 		if checkToken(line, "vp", true) {
-			err = loadVertex(line[2:], &points)
+			err = loadVertex(line[2:], &obj.Points)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		// Texture
+		if checkToken(line, "vt", true) {
+			err = loadVertex(line[2:], &obj.Textures)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
-	return &OBJFile{
-		Vertices: vertices,
-		Normals:  normals,
-		Points:   points,
-	}, nil
+	return &obj, nil
 }
 
 /**
