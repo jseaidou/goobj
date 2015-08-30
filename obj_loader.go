@@ -7,12 +7,12 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"unicode"
 )
 
 type OBJFile struct {
 	Vertices []Vertex
 	Normals  []Vertex
+	Points   []Vertex
 }
 
 type Vertex struct {
@@ -30,6 +30,7 @@ func LoadOBJ(path string) (*OBJFile, error) {
 	reader := bufio.NewReader(file)
 	vertices := []Vertex{}
 	normals := []Vertex{}
+	points := []Vertex{}
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil && err != io.EOF {
@@ -51,38 +52,77 @@ func LoadOBJ(path string) (*OBJFile, error) {
 		}
 
 		// Vertex
-		if line[0] == 'v' && len(line) > 1 && unicode.IsSpace(int32(line[1])) {
-			coords := strings.Fields(line[1:])
-			fCoords, err := parseFloats(coords)
+		if checkToken(line, "v", true) {
+			err = loadVertex(line[1:], &vertices)
 			if err != nil {
 				return nil, err
 			}
-			vertex, err := NewVertex(fCoords)
-			if err != nil {
-				return nil, err
-			}
-			vertices = append(vertices, vertex)
 		}
 
 		// Normals
-		if line[0] == 'v' && len(line) > 2 && line[1] == 'n' && unicode.IsSpace(int32(line[2])) {
-			coords := strings.Fields(line[2:])
-			fCoords, err := parseFloats(coords)
+		if checkToken(line, "vn", true) {
+			err = loadVertex(line[2:], &normals)
 			if err != nil {
 				return nil, err
 			}
+		}
 
-			vertex, err := NewVertex(fCoords)
+		// Points
+		if checkToken(line, "vp", true) {
+			err = loadVertex(line[2:], &points)
 			if err != nil {
 				return nil, err
 			}
-			normals = append(normals, vertex)
 		}
 	}
 	return &OBJFile{
 		Vertices: vertices,
 		Normals:  normals,
+		Points:   points,
 	}, nil
+}
+
+/**
+ * Given a token and a compare string, checkToken will check whether:
+ *		1. token[len(compare)] == compare
+ *		2. if spaceAfter == true then checkToken will check whether
+ *			token[len(compare) + 1] == compare + " "
+ */
+func checkToken(token, compare string, spaceAfter bool) bool {
+	if len(token) >= len(compare) {
+		indexToCheck := len(compare)
+		if spaceAfter {
+			indexToCheck += 1
+			compare = compare + " "
+		}
+		t := token[:indexToCheck]
+		return t == compare
+	}
+	return false
+}
+
+/**
+ * loadVertex breaks apart a string and uses them as vertex coordinates in the form of
+ *     Vertex: x y z [w]
+ *     Normal: i j k
+ *     Point : u v w
+ * and appends it to the slice.
+ */
+func loadVertex(line string, slice *[]Vertex) error {
+	if slice == nil {
+		fmt.Errorf("Got unintialized slice in loadVertex")
+	}
+	coords := strings.Fields(line)
+	fCoords, err := parseFloats(coords)
+	if err != nil {
+		return err
+	}
+	vertex, err := NewVertex(fCoords)
+	if err != nil {
+		return err
+	}
+	*slice = append(*slice, vertex)
+	return nil
 }
 
 /**
@@ -128,4 +168,5 @@ func parseFloats(floats []string) ([]float64, error) {
 		ret = append(ret, p)
 	}
 	return ret, nil
+
 }
