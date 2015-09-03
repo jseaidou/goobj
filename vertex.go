@@ -6,18 +6,16 @@ import (
 )
 
 type VertexData struct {
-	Vertices []Vertex
-	Normals  []Vertex
-	Points   []Vertex
-	Textures []Vertex
+	Vertices *[]Vertex
+	Normals  *[]Vertex
+	Points   *[]Vertex
+	Textures *[]Vertex
 }
 
 type Vertex struct {
 	Coords []float64
-	VType  VType
+	VType  string
 }
-
-type VType string
 
 const (
 	// Vertex Types
@@ -58,7 +56,7 @@ const (
  *	   v is an optional argument. v is the value for the vertical direction of the texture. The default is 0.
  *	   w is an optional argument. w is a value for the depth of the texture. The default is 0.
  */
-func NewVertex(coords []float64, vType VType) Vertex {
+func NewVertex(coords []float64, vType string) Vertex {
 	if vType == Geometric && len(coords) < 4 {
 		coords = append(coords, 1.0)
 	} else if vType == ParameterSpace && len(coords) < 3 {
@@ -66,11 +64,10 @@ func NewVertex(coords []float64, vType VType) Vertex {
 	} else if vType == Texture && len(coords) < 3 {
 		coords = append(coords, 0.0)
 	}
-	vertex := Vertex{
+	return Vertex{
 		Coords: coords,
 		VType:  vType,
 	}
-	return vertex
 }
 
 /**
@@ -81,19 +78,15 @@ func NewVertex(coords []float64, vType VType) Vertex {
  *     Texture: u v [w]
  * and appends it to the slice.
  */
-func LoadVertex(line string, slice *[]Vertex, minArgs int, vType VType) error {
-	if slice == nil {
-		fmt.Errorf("Got unintialized slice in loadVertex")
-	}
+func LoadVertex(line string, minArgs int, vType string) (Vertex, error) {
 	coords := strings.Fields(line)
 	if len(coords) < minArgs {
 		fmt.Errorf("Expected %v for vertex type: %s, but got: %v", minArgs, vType, len(coords))
 	}
 	fCoords, err := parseFloats(coords)
 	if err != nil {
-		return err
+		return Vertex{}, err
 	}
 	vertex := NewVertex(fCoords, vType)
-	*slice = append(*slice, vertex)
-	return nil
+	return vertex, nil
 }

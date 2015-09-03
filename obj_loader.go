@@ -9,8 +9,32 @@ import (
 )
 
 type OBJFile struct {
-	VertexData
-	CSAttributes
+	Shapes []Shape
+}
+
+type Shape struct {
+	Vertices   *VertexData
+	Attributes *CSAttributes
+}
+
+func makeEmptyCSAtt() *CSAttributes {
+	return &CSAttributes{
+		BMatu: Matrix{
+			Elements: [][]float64{},
+		},
+		BMatv: Matrix{
+			Elements: [][]float64{},
+		},
+	}
+}
+
+func makeEmptyVData() *VertexData {
+	return &VertexData{
+		Normals:  &[]Vertex{},
+		Vertices: &[]Vertex{},
+		Points:   &[]Vertex{},
+		Textures: &[]Vertex{},
+	}
 }
 
 func LoadOBJ(path string) (*OBJFile, error) {
@@ -19,7 +43,8 @@ func LoadOBJ(path string) (*OBJFile, error) {
 		return nil, err
 	}
 	reader := bufio.NewReader(file)
-	obj := OBJFile{}
+	vdata := makeEmptyVData()
+	atts := makeEmptyCSAtt()
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil && err != io.EOF {
@@ -42,37 +67,61 @@ func LoadOBJ(path string) (*OBJFile, error) {
 
 		// Geometric Vertex
 		if checkToken(line, Geometric, true) {
-			err = LoadVertex(line[1:], &obj.Vertices, 3, Geometric)
+			vertex, err := LoadVertex(line[len(Geometric):], 3, Geometric)
 			if err != nil {
 				return nil, err
 			}
+			appendVertex(vdata.Vertices, vertex)
 		}
 
 		// Vertex Normals
 		if checkToken(line, Normal, true) {
-			err = LoadVertex(line[2:], &obj.Normals, 3, Normal)
+			vertex, err := LoadVertex(line[len(Normal):], 3, Normal)
 			if err != nil {
 				return nil, err
 			}
+			appendVertex(vdata.Normals, vertex)
 		}
 
 		// Parameter Space Vertex
 		if checkToken(line, ParameterSpace, true) {
-			err = LoadVertex(line[2:], &obj.Points, 2, ParameterSpace)
+			vertex, err := LoadVertex(line[len(ParameterSpace):], 2, ParameterSpace)
 			if err != nil {
 				return nil, err
 			}
+			appendVertex(vdata.Points, vertex)
 		}
 
 		// Texture Vertex
 		if checkToken(line, Texture, true) {
-			err = LoadVertex(line[2:], &obj.Textures, 2, Texture)
+			vertex, err := LoadVertex(line[len(Texture):], 2, Texture)
 			if err != nil {
 				return nil, err
 			}
+			appendVertex(vdata.Textures, vertex)
+		}
+
+		// Curve/Surface Type
+		if checkToken(line, CSTypeStatement, true) {
+			ctype, err := LoadCSStatement(CSTypeStatement, line[len(CSTypeStatement):])
+			if err != nil {
+				return nil, err
+			}
+			atts.Type = ctype.(CSType)
 		}
 	}
-	return &obj, nil
+	return &OBJFile{
+		Shapes: []Shape{
+			Shape{
+				Attributes: atts,
+				Vertices:   vdata,
+			},
+		},
+	}, nil
+}
+
+func appendVertex(slice *[]Vertex, vertex Vertex) {
+	*slice = append(*slice, vertex)
 }
 
 /**
